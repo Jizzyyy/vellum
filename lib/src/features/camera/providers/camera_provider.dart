@@ -162,6 +162,11 @@ class CameraNotifier extends StateNotifier<CameraState> {
     }
   }
 
+  void disposeCamera() {
+    state.controller?.dispose();
+    state = const CameraState();
+  }
+
   @override
   void dispose() {
     state.controller?.dispose();
@@ -170,7 +175,5 @@ class CameraNotifier extends StateNotifier<CameraState> {
 }
 
 final cameraProvider = StateNotifierProvider<CameraNotifier, CameraState>((ref) {
-  final notifier = CameraNotifier();
-  ref.onDispose(() => notifier.dispose());
-  return notifier;
+  return CameraNotifier();
 });

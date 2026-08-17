@@ -35,13 +35,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final camera = ref.read(cameraProvider).controller;
-    if (camera == null || !camera.value.isInitialized) return;
-
     if (state == AppLifecycleState.inactive) {
-      camera.dispose();
+      ref.read(cameraProvider.notifier).disposeCamera();
     } else if (state == AppLifecycleState.resumed) {
-      ref.read(cameraProvider.notifier).initCamera();
+      final perm = ref.read(permissionProvider);
+      if (perm == CameraPermissionState.granted) {
+        ref.read(cameraProvider.notifier).initCamera();
+      }
     }
   }
 

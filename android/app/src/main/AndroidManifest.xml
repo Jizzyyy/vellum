@@ -1,9 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Camera & Flashlight -->
+    <!-- Camera Features -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-permission android:name="android.permission.FLASHLIGHT" />
 
     <!-- Storage Permissions (Scoped storage for Android 13+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
