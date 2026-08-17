@@ -49,6 +49,12 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Vellum requires camera access to scan and digitize documents.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required for camera capture pipeline.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vellum requires access to save scanned documents to your photo library.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
