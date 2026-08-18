@@ -19,10 +19,11 @@ class OcrState {
     OcrStatus? status,
     OcrResultModel? result,
     String? errorMessage,
+    bool clearResult = false,
   }) {
     return OcrState(
       status: status ?? this.status,
-      result: result ?? this.result,
+      result: clearResult ? null : (result ?? this.result),
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -34,7 +35,12 @@ class OcrNotifier extends StateNotifier<OcrState> {
   final OcrService _ocrService;
 
   Future<void> recognizeText(String imagePath) async {
-    state = state.copyWith(status: OcrStatus.processing, errorMessage: null);
+    // Clear old result immediately when starting a new scan session
+    state = state.copyWith(
+      status: OcrStatus.processing, 
+      errorMessage: null,
+      clearResult: true,
+    );
 
     try {
       final ocrResult = await _ocrService.processImagePath(imagePath);
@@ -52,6 +58,13 @@ class OcrNotifier extends StateNotifier<OcrState> {
 
   void reset() {
     state = const OcrState();
+  }
+
+  @override
+  void dispose() {
+    // Ensure native resource disposal is triggered
+    _ocrService.dispose();
+    super.dispose();
   }
 }
 
