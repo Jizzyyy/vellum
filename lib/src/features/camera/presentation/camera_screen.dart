@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,11 +54,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     final permState = ref.watch(permissionProvider);
     final camState = ref.watch(cameraProvider);
-    final ocrState = ref.watch(ocrProvider);
+    
+    // Performance Tuning: Granular selector to avoid full-screen rebuilds on OCR status tick
+    final isProcessing = ref.watch(ocrProvider.select((s) => s.status == OcrStatus.processing));
     final theme = Theme.of(context);
-
-    // Mencegah interaksi tombol shutter jika sedang memproses OCR
-    final isProcessing = ocrState.status == OcrStatus.processing;
 
     if (permState == CameraPermissionState.denied || permState == CameraPermissionState.permanentlyDenied) {
       return Scaffold(
@@ -199,27 +199,36 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                               HapticFeedback.mediumImpact();
                               final file = await ref.read(cameraProvider.notifier).captureImage();
                               if (file != null && context.mounted) {
-                                // Jalankan OCR
-                                await ref.read(ocrProvider.notifier).recognizeText(file.path);
-                                
-                                final currentOcrState = ref.read(ocrProvider);
-                                if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
-                                  if (context.mounted) {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => ScanResultSheet(result: currentOcrState.result!),
-                                    );
+                                try {
+                                  // Jalankan OCR
+                                  await ref.read(ocrProvider.notifier).recognizeText(file.path);
+                                  
+                                  final currentOcrState = ref.read(ocrProvider);
+                                  if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
+                                    if (context.mounted) {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => ScanResultSheet(result: currentOcrState.result!),
+                                      );
+                                    }
+                                  } else if (currentOcrState.status == OcrStatus.error) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
                                   }
-                                } else if (currentOcrState.status == OcrStatus.error) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
+                                } finally {
+                                  // Cleanup temp captured file to prevent disk bloat
+                                  final tempFile = File(file.path);
+                                  if (await tempFile.exists()) {
+                                    await tempFile.delete();
+                                    debugPrint('[CameraScreen] Deleted temp captured photo file: ${file.path}');
                                   }
                                 }
                               }
