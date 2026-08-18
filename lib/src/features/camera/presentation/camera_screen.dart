@@ -1,8 +1,12 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/camera_provider.dart';
 import '../providers/permission_provider.dart';
+import '../../ocr/data/ocr_models.dart';
+import '../../ocr/providers/ocr_provider.dart';
+import '../../ocr/presentation/scan_result_sheet.dart';
 import 'widgets/document_guide_overlay.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -49,7 +53,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     final permState = ref.watch(permissionProvider);
     final camState = ref.watch(cameraProvider);
+    final ocrState = ref.watch(ocrProvider);
     final theme = Theme.of(context);
+
+    // Mencegah interaksi tombol shutter jika sedang memproses OCR
+    final isProcessing = ocrState.status == OcrStatus.processing;
 
     if (permState == CameraPermissionState.denied || permState == CameraPermissionState.permanentlyDenied) {
       return Scaffold(
@@ -185,17 +193,37 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                     ),
                     const SizedBox(height: 20),
                     GestureDetector(
-                      onTap: () async {
-                        final file = await ref.read(cameraProvider.notifier).captureImage();
-                        if (file != null && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Foto berhasil ditangkap: ${file.name}'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
+                      onTap: isProcessing
+                          ? null
+                          : () async {
+                              HapticFeedback.mediumImpact();
+                              final file = await ref.read(cameraProvider.notifier).captureImage();
+                              if (file != null && context.mounted) {
+                                // Jalankan OCR
+                                await ref.read(ocrProvider.notifier).recognizeText(file.path);
+                                
+                                final currentOcrState = ref.read(ocrProvider);
+                                if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
+                                  if (context.mounted) {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => ScanResultSheet(result: currentOcrState.result!),
+                                    );
+                                  }
+                                } else if (currentOcrState.status == OcrStatus.error) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
                       child: Container(
                         width: 76,
                         height: 76,
@@ -205,14 +233,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                           color: Colors.transparent,
                         ),
                         child: Center(
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF38BDF8),
-                            ),
-                          ),
+                          child: isProcessing
+                              ? const SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF38BDF8),
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              : Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFF38BDF8),
+                                  ),
+                                ),
                         ),
                       ),
                     ),

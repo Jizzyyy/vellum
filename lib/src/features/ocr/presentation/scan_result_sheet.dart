@@ -152,7 +152,7 @@ class _ScanResultSheetState extends State<ScanResultSheet> {
                     icon: const Icon(Icons.share_rounded),
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      Share.share(widget.result.fullText);
+                      SharePlus.instance.share(ShareParams(text: widget.result.fullText));
                     },
                   ),
                 ],
