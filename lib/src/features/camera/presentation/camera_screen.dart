@@ -1,13 +1,16 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import '../providers/camera_provider.dart';
 import '../providers/permission_provider.dart';
 import '../../ocr/data/ocr_models.dart';
 import '../../ocr/providers/ocr_provider.dart';
 import '../../ocr/presentation/scan_result_sheet.dart';
+import '../../scanner/utils/image_filter.dart';
 import 'widgets/document_guide_overlay.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -18,6 +21,9 @@ class CameraScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBindingObserver {
+  StreamSubscription<AccelerometerEvent>? _sensorSubscription;
+  bool _isAligned = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,11 +36,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
         ref.read(cameraProvider.notifier).initCamera();
       }
     });
+
+    // Deteksi kemiringan/sudut hadap HP menggunakan akselerometer
+    // Jika HP datar (z-axis mendekati 9.8 m/s^2), ganti guide box menjadi hijau (aligned)
+    _sensorSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
+      final isFlat = event.z.abs() > 9.0 && event.x.abs() < 1.5 && event.y.abs() < 1.5;
+      if (isFlat != _isAligned) {
+        setState(() {
+          _isAligned = isFlat;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sensorSubscription?.cancel();
     super.dispose();
   }
 
@@ -135,9 +153,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
           ),
 
           // 2. Document Frame Overlay Guide
-          const DocumentGuideOverlay(),
+          DocumentGuideOverlay(isAligned: _isAligned),
 
-          // 3. Top Action Bar (Flash, Camera Switch, Resolution)
+          // 3. Top Action Bar (Flash, Filter Toggle, Camera Switch)
           SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
@@ -157,13 +175,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                       ),
                       onPressed: () => ref.read(cameraProvider.notifier).toggleFlash(),
                     ),
-                    Text(
-                      'VELLUM SCAN',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: Colors.white,
-                        letterSpacing: 2.5,
-                        fontWeight: FontWeight.bold,
+                    IconButton(
+                      icon: Icon(
+                        camState.applyFilter ? Icons.filter_b_and_w : Icons.filter_b_and_w_outlined,
+                        color: camState.applyFilter ? const Color(0xFF38BDF8) : Colors.white,
                       ),
+                      tooltip: 'Filter Dokumen',
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(cameraProvider.notifier).toggleFilter();
+                      },
                     ),
                     IconButton(
                       icon: const Icon(Icons.flip_camera_android_outlined, color: Colors.white),
@@ -199,9 +220,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                               HapticFeedback.mediumImpact();
                               final file = await ref.read(cameraProvider.notifier).captureImage();
                               if (file != null && context.mounted) {
+                                String targetPath = file.path;
                                 try {
-                                  // Jalankan OCR
-                                  await ref.read(ocrProvider.notifier).recognizeText(file.path);
+                                  // Jika filter aktif, proses gambar dulu
+                                  if (ref.read(cameraProvider).applyFilter) {
+                                    final filteredFile = await ImageFilterProcessor.processDocumentImage(
+                                      sourcePath: file.path,
+                                      destinationPath: '${file.path}_filtered.jpg',
+                                      applyContrastFilter: true,
+                                    );
+                                    targetPath = filteredFile.path;
+                                  }
+
+                                  // Jalankan OCR pada gambar hasil filter
+                                  await ref.read(ocrProvider.notifier).recognizeText(targetPath);
                                   
                                   final currentOcrState = ref.read(ocrProvider);
                                   if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
@@ -224,11 +256,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                                     }
                                   }
                                 } finally {
-                                  // Cleanup temp captured file to prevent disk bloat
+                                  // Cleanup temp captured & filtered files to prevent disk bloat
                                   final tempFile = File(file.path);
                                   if (await tempFile.exists()) {
                                     await tempFile.delete();
-                                    debugPrint('[CameraScreen] Deleted temp captured photo file: ${file.path}');
+                                  }
+                                  final tempFilteredFile = File('${file.path}_filtered.jpg');
+                                  if (await tempFilteredFile.exists()) {
+                                    await tempFilteredFile.delete();
                                   }
                                 }
                               }
