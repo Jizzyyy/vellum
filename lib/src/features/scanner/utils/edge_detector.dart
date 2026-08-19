@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
 
 class EdgeDetector {
   /// Mendeteksi 4 sudut dari sebuah halaman kertas dokumen di dalam gambar.
