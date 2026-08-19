@@ -18,6 +18,7 @@ class CameraState {
     this.availableCameras = const [],
     this.selectedCameraIndex = 0,
     this.flashMode = FlashMode.off,
+    this.applyFilter = true, // default active
     this.errorMessage,
   });
 
@@ -26,6 +27,7 @@ class CameraState {
   final List<CameraDescription> availableCameras;
   final int selectedCameraIndex;
   final FlashMode flashMode;
+  final bool applyFilter;
   final String? errorMessage;
 
   CameraState copyWith({
@@ -34,6 +36,7 @@ class CameraState {
     List<CameraDescription>? availableCameras,
     int? selectedCameraIndex,
     FlashMode? flashMode,
+    bool? applyFilter,
     String? errorMessage,
   }) {
     return CameraState(
@@ -42,6 +45,7 @@ class CameraState {
       availableCameras: availableCameras ?? this.availableCameras,
       selectedCameraIndex: selectedCameraIndex ?? this.selectedCameraIndex,
       flashMode: flashMode ?? this.flashMode,
+      applyFilter: applyFilter ?? this.applyFilter,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -49,6 +53,10 @@ class CameraState {
 
 class CameraNotifier extends StateNotifier<CameraState> {
   CameraNotifier() : super(const CameraState());
+
+  void toggleFilter() {
+    state = state.copyWith(applyFilter: !state.applyFilter);
+  }
 
   Future<void> initCamera() async {
     if (state.status == CameraStatus.initializing) return;
