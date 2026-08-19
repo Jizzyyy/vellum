@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 
 class DocumentGuideOverlay extends StatelessWidget {
-  const DocumentGuideOverlay({super.key});
+  const DocumentGuideOverlay({super.key, this.isAligned = false});
+
+  final bool isAligned;
 
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: CustomPaint(
         size: Size.infinite,
-        painter: _DocumentGuidePainter(),
+        painter: _DocumentGuidePainter(isAligned: isAligned),
       ),
     );
   }
 }
 
 class _DocumentGuidePainter extends CustomPainter {
+  _DocumentGuidePainter({required this.isAligned});
+
+  final bool isAligned;
+
   @override
   void paint(Canvas canvas, Size size) {
     // Ukuran panduan dokumen proporsi A4 (1:1.414)
@@ -43,8 +49,9 @@ class _DocumentGuidePainter extends CustomPainter {
     canvas.drawPath(backgroundPath, backgroundPaint);
 
     // 2. Corner brackets (Sudut-sudut panduan dokumen)
+    final cornerColor = isAligned ? const Color(0xFF34D399) : const Color(0xFF38BDF8);
     final cornerPaint = Paint()
-      ..color = const Color(0xFF38BDF8) // Cyan Accent
+      ..color = cornerColor
       ..strokeWidth = 3.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -93,5 +100,6 @@ class _DocumentGuidePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DocumentGuidePainter oldDelegate) => 
+      oldDelegate.isAligned != isAligned;
 }
