@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/document_provider.dart';
 import '../../models/document_model.dart';
-import '../../../../utils/custom_snackbar.dart';
+import '../../../../core/utils/custom_snackbar.dart';
 
 class DocumentLibraryDrawer extends ConsumerWidget {
   const DocumentLibraryDrawer({super.key});
@@ -70,7 +70,7 @@ class DocumentLibraryDrawer extends ConsumerWidget {
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                     itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (context, index) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       final doc = docs[index];
                       return _DocumentTile(doc: doc);

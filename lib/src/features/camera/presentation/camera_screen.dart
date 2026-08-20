@@ -11,6 +11,7 @@ import '../../ocr/data/ocr_models.dart';
 import '../../ocr/providers/ocr_provider.dart';
 import '../../ocr/presentation/scan_result_sheet.dart';
 import '../../scanner/utils/image_filter.dart';
+import '../../documents/presentation/widgets/document_library_drawer.dart';
 import 'widgets/document_guide_overlay.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -144,6 +145,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
 
     return Scaffold(
       backgroundColor: Colors.black,
+      drawer: const DocumentLibraryDrawer(),
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -164,6 +166,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Builder(
+                      builder: (context) => IconButton(
+                        icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                        tooltip: 'Buka Vault',
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          Scaffold.of(context).openDrawer();
+                        },
+                      ),
+                    ),
                     IconButton(
                       icon: Icon(
                         switch (camState.flashMode) {
