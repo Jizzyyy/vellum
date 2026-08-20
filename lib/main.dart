@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'src/core/theme/app_theme.dart';
 import 'src/features/camera/presentation/camera_screen.dart';
+import 'src/features/documents/providers/document_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,9 +14,14 @@ void main() async {
     DeviceOrientation.portraitUp,
   ]);
 
+  final prefs = await SharedPreferences.getInstance();
+
   runApp(
-    const ProviderScope(
-      child: VellumApp(),
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const VellumApp(),
     ),
   );
 }
