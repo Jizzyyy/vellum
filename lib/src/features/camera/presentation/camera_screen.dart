@@ -221,50 +221,43 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                               final file = await ref.read(cameraProvider.notifier).captureImage();
                               if (file != null && context.mounted) {
                                 String targetPath = file.path;
-                                try {
-                                  // Jika filter aktif, proses gambar dulu
-                                  if (ref.read(cameraProvider).applyFilter) {
-                                    final filteredFile = await ImageFilterProcessor.processDocumentImage(
-                                      sourcePath: file.path,
-                                      destinationPath: '${file.path}_filtered.jpg',
-                                      applyContrastFilter: true,
-                                    );
-                                    targetPath = filteredFile.path;
-                                  }
+                                // Jika filter aktif, proses gambar dulu
+                                if (ref.read(cameraProvider).applyFilter) {
+                                  final filteredFile = await ImageFilterProcessor.processDocumentImage(
+                                    sourcePath: file.path,
+                                    destinationPath: '${file.path}_filtered.jpg',
+                                    applyContrastFilter: true,
+                                  );
+                                  targetPath = filteredFile.path;
+                                }
 
-                                  // Jalankan OCR pada gambar hasil filter
-                                  await ref.read(ocrProvider.notifier).recognizeText(targetPath);
-                                  
-                                  final currentOcrState = ref.read(ocrProvider);
-                                  if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
-                                    if (context.mounted) {
-                                      showModalBottomSheet(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        backgroundColor: Colors.transparent,
-                                        builder: (_) => ScanResultSheet(result: currentOcrState.result!),
-                                      );
-                                    }
-                                  } else if (currentOcrState.status == OcrStatus.error) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
+                                // Jalankan OCR pada gambar hasil filter
+                                await ref.read(ocrProvider.notifier).recognizeText(targetPath);
+                                
+                                final currentOcrState = ref.read(ocrProvider);
+                                if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
+                                  if (context.mounted) {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => ScanResultSheet(result: currentOcrState.result!),
+                                    );
                                   }
-                                } finally {
-                                  // Cleanup temp captured & filtered files to prevent disk bloat
+                                } else if (currentOcrState.status == OcrStatus.error) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                  // Cleanup on immediate error since sheet won't open
                                   final tempFile = File(file.path);
-                                  if (await tempFile.exists()) {
-                                    await tempFile.delete();
-                                  }
+                                  if (tempFile.existsSync()) tempFile.deleteSync();
                                   final tempFilteredFile = File('${file.path}_filtered.jpg');
-                                  if (await tempFilteredFile.exists()) {
-                                    await tempFilteredFile.delete();
-                                  }
+                                  if (tempFilteredFile.existsSync()) tempFilteredFile.deleteSync();
                                 }
                               }
                             },

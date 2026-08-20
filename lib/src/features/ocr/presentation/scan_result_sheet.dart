@@ -1,21 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/ocr_models.dart';
+import '../../documents/providers/document_provider.dart';
+import '../../documents/models/document_model.dart';
+import '../../scanner/utils/pdf_generator.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
-class ScanResultSheet extends StatefulWidget {
+class ScanResultSheet extends ConsumerStatefulWidget {
   const ScanResultSheet({super.key, required this.result});
 
   final OcrResultModel result;
 
   @override
-  State<ScanResultSheet> createState() => _ScanResultSheetState();
+  ConsumerState<ScanResultSheet> createState() => _ScanResultSheetState();
 }
 
-class _ScanResultSheetState extends State<ScanResultSheet> {
+class _ScanResultSheetState extends ConsumerState<ScanResultSheet> {
   final _searchController = TextEditingController();
+  final _nameController = TextEditingController();
   String _searchQuery = '';
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -25,11 +33,39 @@ class _ScanResultSheetState extends State<ScanResultSheet> {
         _searchQuery = _searchController.text.trim();
       });
     });
+    // Set default name using timestamp
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(5);
+    _nameController.text = 'Dokumen_$timestamp';
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _nameController.dispose();
+
+    // Clean up temporary image files associated with this scan session
+    // to prevent device disk bloat.
+    final imagePath = widget.result.imagePath;
+    Future.microtask(() async {
+      try {
+        final file = File(imagePath);
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint('[ScanResultSheet] Deleted source image: $imagePath');
+        }
+
+        // Also check and delete unfiltered original if it exists
+        final originalPath = imagePath.replaceAll('_filtered.jpg', '');
+        final originalFile = File(originalPath);
+        if (originalPath != imagePath && await originalFile.exists()) {
+          await originalFile.delete();
+          debugPrint('[ScanResultSheet] Deleted original image: $originalPath');
+        }
+      } catch (e) {
+        debugPrint('Error cleaning up ocr temp files: $e');
+      }
+    });
+
     super.dispose();
   }
 
@@ -73,6 +109,96 @@ class _ScanResultSheetState extends State<ScanResultSheet> {
     }
 
     return spans;
+  }
+
+  Future<void> _saveAsPdf() async {
+    final docName = _nameController.text.trim();
+    if (docName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nama dokumen tidak boleh kosong.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final id = DateTime.now().millisecondsSinceEpoch.toString();
+      final targetPath = '${appDocDir.path}/$id.pdf';
+
+      // Generate PDF from the OCR image
+      await PdfGenerator.generatePdf(
+        imagePaths: [widget.result.imagePath],
+        targetPath: targetPath,
+      );
+
+      final doc = DocumentModel(
+        id: id,
+        name: docName,
+        pdfPath: targetPath,
+        pageCount: 1,
+        createdAt: DateTime.now(),
+      );
+
+      // Save to SharedPreferences Vault via Riverpod Notifier
+      await ref.read(documentListProvider.notifier).addDocument(doc);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dokumen "$docName" berhasil disimpan ke Vault.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan dokumen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _showSaveDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF181B22),
+        title: Text(
+          'Simpan Dokumen',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        content: TextField(
+          controller: _nameController,
+          decoration: const InputDecoration(
+            labelText: 'Nama File',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('BATAL', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _saveAsPdf();
+            },
+            child: const Text('SIMPAN', style: TextStyle(color: Color(0xFF38BDF8))),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -244,21 +370,53 @@ class _ScanResultSheetState extends State<ScanResultSheet> {
           ),
           const SizedBox(height: 16),
 
-          // 5. Close Action Button
-          FilledButton(
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          // 5. Actions Panel (Save PDF & Close)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Color(0xFF38BDF8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'BATAL',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
+                  ),
+                ),
               ),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'TUTUP',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: const Color(0xFF38BDF8),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: _isSaving ? null : _showSaveDialog,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.picture_as_pdf_rounded),
+                  label: const Text(
+                    'SIMPAN PDF',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
