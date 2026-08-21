@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../data/ocr_models.dart';
 import '../../documents/providers/document_provider.dart';
 import '../../documents/models/document_model.dart';
@@ -393,26 +394,23 @@ class _ScanResultSheetState extends ConsumerState<ScanResultSheet> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF38BDF8),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                child: Skeletonizer(
+                  enabled: _isSaving,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: const Color(0xFF38BDF8),
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                  ),
-                  onPressed: _isSaving ? null : _showSaveDialog,
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                        )
-                      : const Icon(Icons.picture_as_pdf_rounded),
-                  label: const Text(
-                    'SIMPAN PDF',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    onPressed: _isSaving ? null : _showSaveDialog,
+                    icon: const Icon(Icons.picture_as_pdf_rounded),
+                    label: const Text(
+                      'SIMPAN PDF',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ),

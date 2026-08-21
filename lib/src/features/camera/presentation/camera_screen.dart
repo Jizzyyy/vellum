@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../providers/camera_provider.dart';
 import '../providers/permission_provider.dart';
 import '../../ocr/data/ocr_models.dart';
@@ -119,9 +120,72 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
     }
 
     if (camState.status == CameraStatus.initializing || camState.status == CameraStatus.uninitialized) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+      // Performance Tuning: Render a clean skeletonized camera interface during initialization
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Skeletonizer(
+          enabled: true,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Fake Cam Frame
+              Container(color: Colors.black),
+              // Document Guide Box skeleton
+              const DocumentGuideOverlay(),
+              // Top Bar Mock
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(icon: const Icon(Icons.menu_rounded), onPressed: () {}),
+                        IconButton(icon: const Icon(Icons.flash_off), onPressed: () {}),
+                        IconButton(icon: const Icon(Icons.filter_b_and_w), onPressed: () {}),
+                        IconButton(icon: const Icon(Icons.flip_camera_android), onPressed: () {}),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Bottom Shutter Mock
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 200, height: 12, color: Colors.white24),
+                        const SizedBox(height: 20),
+                        Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 4),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF38BDF8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -282,23 +346,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                           color: Colors.transparent,
                         ),
                         child: Center(
-                          child: isProcessing
-                              ? const SizedBox(
-                                  width: 40,
-                                  height: 40,
-                                  child: CircularProgressIndicator(
-                                    color: Color(0xFF38BDF8),
-                                    strokeWidth: 3,
-                                  ),
-                                )
-                              : Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Color(0xFF38BDF8),
-                                  ),
-                                ),
+                          child: Skeletonizer(
+                            enabled: isProcessing,
+                            child: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF38BDF8),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
