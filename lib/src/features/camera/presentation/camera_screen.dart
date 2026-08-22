@@ -262,6 +262,21 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                         ref.read(cameraProvider.notifier).toggleFilter();
                       },
                     ),
+                    if (camState.batchImagePaths.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.cancel_outlined, color: Color(0xFFF87171)),
+                        tooltip: 'Batal Batch (${camState.batchImagePaths.length})',
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          ref.read(cameraProvider.notifier).clearBatch();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sesi pemindaian batch dibatalkan.'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
                     IconButton(
                       icon: const Icon(Icons.flip_camera_android_outlined, color: Colors.white),
                       onPressed: () => ref.read(cameraProvider.notifier).switchCamera(),
@@ -289,76 +304,101 @@ class _CameraScreenState extends ConsumerState<CameraScreen> with WidgetsBinding
                       ),
                     ),
                     const SizedBox(height: 20),
-                    GestureDetector(
-                      onTap: isProcessing
-                          ? null
-                          : () async {
-                              HapticFeedback.mediumImpact();
-                              final file = await ref.read(cameraProvider.notifier).captureImage();
-                              if (file != null && context.mounted) {
-                                String targetPath = file.path;
-                                // Jika filter aktif, proses gambar dulu
-                                if (ref.read(cameraProvider).applyFilter) {
-                                  final filteredFile = await ImageFilterProcessor.processDocumentImage(
-                                    sourcePath: file.path,
-                                    destinationPath: '${file.path}_filtered.jpg',
-                                    applyContrastFilter: true,
-                                  );
-                                  targetPath = filteredFile.path;
-                                }
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: isProcessing
+                              ? null
+                              : () async {
+                                  HapticFeedback.mediumImpact();
+                                  final file = await ref.read(cameraProvider.notifier).captureImage();
+                                  if (file != null && context.mounted) {
+                                    String targetPath = file.path;
+                                    // Jika filter aktif, proses gambar dulu
+                                    if (ref.read(cameraProvider).applyFilter) {
+                                      final filteredFile = await ImageFilterProcessor.processDocumentImage(
+                                        sourcePath: file.path,
+                                        destinationPath: '${file.path}_filtered.jpg',
+                                        applyContrastFilter: true,
+                                      );
+                                      targetPath = filteredFile.path;
+                                    }
 
-                                // Jalankan OCR pada gambar hasil filter
-                                await ref.read(ocrProvider.notifier).recognizeText(targetPath);
-                                
-                                final currentOcrState = ref.read(ocrProvider);
-                                if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
-                                  if (context.mounted) {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => ScanResultSheet(result: currentOcrState.result!),
-                                    );
+                                    // Jalankan OCR pada gambar hasil filter
+                                    await ref.read(ocrProvider.notifier).recognizeText(targetPath);
+                                    
+                                    final currentOcrState = ref.read(ocrProvider);
+                                    if (currentOcrState.status == OcrStatus.success && currentOcrState.result != null) {
+                                      if (context.mounted) {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          backgroundColor: Colors.transparent,
+                                          builder: (_) => ScanResultSheet(result: currentOcrState.result!),
+                                        );
+                                      }
+                                    } else if (currentOcrState.status == OcrStatus.error) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
+                                      // Cleanup on immediate error since sheet won't open
+                                      final tempFile = File(file.path);
+                                      if (tempFile.existsSync()) tempFile.deleteSync();
+                                      final tempFilteredFile = File('${file.path}_filtered.jpg');
+                                      if (tempFilteredFile.existsSync()) tempFilteredFile.deleteSync();
+                                    }
                                   }
-                                } else if (currentOcrState.status == OcrStatus.error) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(currentOcrState.errorMessage ?? 'Gagal mengenali teks.'),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  }
-                                  // Cleanup on immediate error since sheet won't open
-                                  final tempFile = File(file.path);
-                                  if (tempFile.existsSync()) tempFile.deleteSync();
-                                  final tempFilteredFile = File('${file.path}_filtered.jpg');
-                                  if (tempFilteredFile.existsSync()) tempFilteredFile.deleteSync();
-                                }
-                              }
-                            },
-                      child: Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                          color: Colors.transparent,
-                        ),
-                        child: Center(
-                          child: Skeletonizer(
-                            enabled: isProcessing,
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF38BDF8),
+                                },
+                          child: Container(
+                            width: 76,
+                            height: 76,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 4),
+                              color: Colors.transparent,
+                            ),
+                            child: Center(
+                              child: Skeletonizer(
+                                enabled: isProcessing,
+                                child: Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFF38BDF8),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
+                        if (camState.batchImagePaths.isNotEmpty)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF34D399),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${camState.batchImagePaths.length}',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
