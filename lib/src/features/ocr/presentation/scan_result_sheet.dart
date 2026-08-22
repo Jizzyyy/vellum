@@ -7,6 +7,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import '../data/ocr_models.dart';
 import '../../documents/providers/document_provider.dart';
 import '../../documents/models/document_model.dart';
+import '../../camera/providers/camera_provider.dart';
 import '../../scanner/utils/pdf_generator.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -128,9 +129,13 @@ class _ScanResultSheetState extends ConsumerState<ScanResultSheet> {
       final id = DateTime.now().millisecondsSinceEpoch.toString();
       final targetPath = '${appDocDir.path}/$id.pdf';
 
-      // Generate PDF from the OCR image
+      // Collect all images in the batch (or single image if no batch)
+      final batchList = ref.read(cameraProvider).batchImagePaths;
+      final allImages = batchList.isNotEmpty ? batchList : [widget.result.imagePath];
+
+      // Generate Multipage PDF
       await PdfGenerator.generatePdf(
-        imagePaths: [widget.result.imagePath],
+        imagePaths: allImages,
         targetPath: targetPath,
       );
 
@@ -138,18 +143,21 @@ class _ScanResultSheetState extends ConsumerState<ScanResultSheet> {
         id: id,
         name: docName,
         pdfPath: targetPath,
-        pageCount: 1,
+        pageCount: allImages.length,
         createdAt: DateTime.now(),
       );
 
       // Save to SharedPreferences Vault via Riverpod Notifier
       await ref.read(documentListProvider.notifier).addDocument(doc);
 
+      // Clear batch state after successful save
+      ref.read(cameraProvider.notifier).clearBatch();
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Dokumen "$docName" berhasil disimpan ke Vault.'),
+            content: Text('Dokumen "$docName" (${allImages.length} Hlm) berhasil disimpan ke Vault.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -371,34 +379,43 @@ class _ScanResultSheetState extends ConsumerState<ScanResultSheet> {
           ),
           const SizedBox(height: 16),
 
-          // 5. Actions Panel (Save PDF & Close)
+          // 5. Actions Panel (Add Another Page, Save PDF & Close)
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: Color(0xFF38BDF8)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   onPressed: () {
+                    // Accumulate current photo path into batch
+                    ref.read(cameraProvider.notifier).addBatchPage(widget.result.imagePath);
                     Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Halaman ditambahkan! Ambil foto halaman berikutnya.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
                   },
-                  child: const Text(
-                    'BATAL',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
+                  icon: const Icon(Icons.add_a_photo_outlined, size: 18, color: Color(0xFF38BDF8)),
+                  label: const Text(
+                    '+ HALAMAN',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8), fontSize: 12),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: Skeletonizer(
                   enabled: _isSaving,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: const Color(0xFF38BDF8),
                       foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(
@@ -406,10 +423,16 @@ class _ScanResultSheetState extends ConsumerState<ScanResultSheet> {
                       ),
                     ),
                     onPressed: _isSaving ? null : _showSaveDialog,
-                    icon: const Icon(Icons.picture_as_pdf_rounded),
-                    label: const Text(
-                      'SIMPAN PDF',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                    label: Consumer(
+                      builder: (context, ref, _) {
+                        final count = ref.watch(cameraProvider.select((s) => s.batchImagePaths.length));
+                        final total = count > 0 ? count + 1 : 1;
+                        return Text(
+                          'SIMPAN ($total)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        );
+                      },
                     ),
                   ),
                 ),

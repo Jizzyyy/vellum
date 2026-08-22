@@ -19,6 +19,7 @@ class CameraState {
     this.selectedCameraIndex = 0,
     this.flashMode = FlashMode.off,
     this.applyFilter = true, // default active
+    this.batchImagePaths = const [],
     this.errorMessage,
   });
 
@@ -28,6 +29,7 @@ class CameraState {
   final int selectedCameraIndex;
   final FlashMode flashMode;
   final bool applyFilter;
+  final List<String> batchImagePaths;
   final String? errorMessage;
 
   CameraState copyWith({
@@ -37,6 +39,7 @@ class CameraState {
     int? selectedCameraIndex,
     FlashMode? flashMode,
     bool? applyFilter,
+    List<String>? batchImagePaths,
     String? errorMessage,
   }) {
     return CameraState(
@@ -46,6 +49,7 @@ class CameraState {
       selectedCameraIndex: selectedCameraIndex ?? this.selectedCameraIndex,
       flashMode: flashMode ?? this.flashMode,
       applyFilter: applyFilter ?? this.applyFilter,
+      batchImagePaths: batchImagePaths ?? this.batchImagePaths,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -56,6 +60,14 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
   void toggleFilter() {
     state = state.copyWith(applyFilter: !state.applyFilter);
+  }
+
+  void addBatchPage(String path) {
+    state = state.copyWith(batchImagePaths: [...state.batchImagePaths, path]);
+  }
+
+  void clearBatch() {
+    state = state.copyWith(batchImagePaths: const []);
   }
 
   Future<void> initCamera() async {
