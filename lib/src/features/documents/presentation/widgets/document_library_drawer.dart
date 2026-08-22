@@ -88,6 +88,52 @@ class _DocumentTile extends ConsumerWidget {
 
   final DocumentModel doc;
 
+  void _showRenameDialog(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController(text: doc.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF181B22),
+        title: Text(
+          'Ubah Nama Dokumen',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            labelText: 'Nama Baru',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('BATAL', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty && newName != doc.name) {
+                await ref.read(documentListProvider.notifier).renameDocument(doc.id, newName);
+                if (context.mounted) {
+                  CustomSnackbar.show(
+                    context,
+                    message: 'Nama dokumen diubah menjadi "$newName".',
+                    type: SnackbarType.success,
+                  );
+                }
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('SIMPAN', style: TextStyle(color: Color(0xFF38BDF8))),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -163,29 +209,40 @@ class _DocumentTile extends ConsumerWidget {
             '$dateStr • ${doc.pageCount} Hlm',
             style: const TextStyle(fontSize: 12),
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.share_rounded, size: 20),
-            onPressed: () async {
-              HapticFeedback.lightImpact();
-              final file = File(doc.pdfPath);
-              if (await file.exists()) {
-                await SharePlus.instance.share(
-                  ShareParams(
-                    files: [XFile(doc.pdfPath)],
-                    subject: doc.name,
-                    text: 'Membagikan dokumen PDF dari Vellum Scanner.',
-                  ),
-                );
-              } else {
-                if (context.mounted) {
-                  CustomSnackbar.show(
-                    context,
-                    message: 'File PDF fisik tidak ditemukan.',
-                    type: SnackbarType.error,
-                  );
-                }
-              }
-            },
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                tooltip: 'Ubah Nama',
+                onPressed: () => _showRenameDialog(context, ref),
+              ),
+              IconButton(
+                icon: const Icon(Icons.share_rounded, size: 18),
+                tooltip: 'Bagikan PDF',
+                onPressed: () async {
+                  HapticFeedback.lightImpact();
+                  final file = File(doc.pdfPath);
+                  if (await file.exists()) {
+                    await SharePlus.instance.share(
+                      ShareParams(
+                        files: [XFile(doc.pdfPath)],
+                        subject: doc.name,
+                        text: 'Membagikan dokumen PDF dari Vellum Scanner.',
+                      ),
+                    );
+                  } else {
+                    if (context.mounted) {
+                      CustomSnackbar.show(
+                        context,
+                        message: 'File PDF fisik tidak ditemukan.',
+                        type: SnackbarType.error,
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
           ),
         ),
       ),
