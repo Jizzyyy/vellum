@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/document_provider.dart';
 import '../../models/document_model.dart';
+import '../pdf_preview_screen.dart';
 import '../../../../core/utils/custom_snackbar.dart';
 
 class DocumentLibraryDrawer extends ConsumerWidget {
@@ -194,6 +195,15 @@ class _DocumentTile extends ConsumerWidget {
       child: Card(
         margin: EdgeInsets.zero,
         child: ListTile(
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PdfPreviewScreen(document: doc),
+              ),
+            );
+          },
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: const CircleAvatar(
             backgroundColor: Color(0xFF0F1115),
